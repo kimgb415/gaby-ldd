@@ -1,17 +1,16 @@
-# KERNELRELEASE variable is set by the kernel build system
+# If KERNELRELEASE is defined, we've been invoked from the
+# kernel build system and can use its language.
 ifneq ($(KERNELRELEASE),)
+	obj-m := main.o
 
-scull-objs := main.o
-obj-m := scull.o
-
-# if make is run by user in scull directory
+# Otherwise we were called directly from the command
+# line; invoke the kernel build system.
 else
-
-KERNELDIR ?= /lib/modules/$(shell uname -r)/build
-PWD := $(shell pwd)
+	KERNELDIR ?= /lib/modules/$(shell uname -r)/build
+	PWD := $(shell pwd)
 
 modules:
-	$(MAKE) -C $(KERNELDIR) M=$(PWD) LDDINC=$(PWD)/../include modules
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
 
 endif
 

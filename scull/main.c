@@ -28,16 +28,17 @@ MODULE_DESCRIPTION("scull device driver in Linux Device Driver with linux 6.7.0"
 MODULE_LICENSE("GPL v2");
 
 
-int scull_init_module(void)
+static int __init scull_init_module(void)
 {
-	printk(KERN_DEBUG "scull module loaded");
+	printk(KERN_INFO "scull module loaded");
 
 	return 0;
 }
 
-void scull_cleanup_module(void)
+// cleanup function can't be marked as __exit, if it's used else where other than module_exit
+static void __exit scull_cleanup_module(void)
 {
-	printk(KERN_DEBUG "scull module unloaded");
+	printk(KERN_INFO "scull module unloaded");
 };
 
 module_init(scull_init_module);

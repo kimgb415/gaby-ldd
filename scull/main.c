@@ -89,6 +89,7 @@ int scull_open(struct inode *inode, struct file *filp)
 	if ((filp->f_flags & O_ACCMODE) == O_WRONLY) {
 		if (down_interruptible(&dev->sem))
 			return -ERESTARTSYS;
+		printk(KERN_INFO "device file opened with O_WRONLY");
 		scull_trim(dev);
 		up(&dev->sem);
 	}
@@ -176,8 +177,12 @@ static int __init scull_init_module(void)
 	}
 	memset(scull_devices, 0, scull_nr_devs * sizeof(struct scull_dev));
 
-	for (int i = 0; i < scull_nr_devs; ++i)
+	for (int i = 0; i < scull_nr_devs; ++i) {
+		scull_devices[i].quantum = scull_quantum;
+		scull_devices[i].qset = scull_qset;
+		sema_init(&scull_devices[i].sem, 1);
 		scull_setup_cdev(&scull_devices[i], i);
+	}
 
 	return 0;
 

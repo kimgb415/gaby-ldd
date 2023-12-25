@@ -1,0 +1,25 @@
+#!/bin/sh
+module="scull"
+device="scull"
+mode="664"
+
+# invoke insmod with all arguments we got
+# if insmod fails, the script will exit with error code of 1
+/sbin/insmod ./$module.ko $* || exit 1
+
+rm -rf /dev/${device}[0-3]
+
+# use awk to retrive the major number
+# from the line where the second field equals to out module name
+major=$(awk "\$2==\"$module\" {print \$1}" /proc/devices)
+
+for i in 0 1 2 3; do
+	mknod /dev/${device}0 c $major $i
+done
+
+group="staff"
+grep -q "^staff:" /etc/group || group="wheel"
+
+# since this script must be run by root
+chgrp $group /dev/${device}[0-3]
+chmod $mode /dev/${device}[0-3]

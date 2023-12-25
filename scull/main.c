@@ -42,9 +42,32 @@ MODULE_LICENSE("GPL v2");
 
 struct scull_dev *scull_devices;	/* allocated in scull_init_module */
 
+/*
+ * Open and close
+ */
+int scull_open(struct inode *inode, struct file *filp)
+{
+	struct scull_dev *dev;
+	
+	dev = container_of(inode->i_cdev, struct scull_dev, cdev);
+	filp->private_data = dev;
+
+	printk(KERN_INFO "scull device is opened");
+
+	return 0;
+}
+
+int scull_release(struct inode *inode, struct file *filp)
+{
+	printk(KERN_INFO "scull device is released");
+	return 0;
+}
+
 struct file_operations scull_fops = {
-	.owner =    THIS_MODULE,
-	};
+	.owner =    	THIS_MODULE,
+	.open = 		scull_open,
+	.release = 		scull_release,
+};
 
 /*
  * The cleanup function is used to handle initialization failures as well.

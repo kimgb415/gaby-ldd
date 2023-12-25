@@ -44,7 +44,7 @@ struct scull_dev *scull_devices;	/* allocated in scull_init_module */
 
 struct file_operations scull_fops = {
 	.owner =    THIS_MODULE,
-};
+	};
 
 /*
  * The cleanup function is used to handle initialization failures as well.
@@ -69,14 +69,14 @@ void scull_cleanup_module(void)
 
 static void scull_setup_cdev(struct scull_dev *dev, int index)
 {
-	int err, devno = MKDEV(scull_major, scull_minor + index);
+	int devno = MKDEV(scull_major, scull_minor + index);
 	cdev_init(&dev->cdev, &scull_fops);
 	dev->cdev.owner = THIS_MODULE;
 	dev->cdev.ops = &scull_fops;
-	err = cdev_add(&dev->cdev, devno, 1);
+	int err = cdev_add(&dev->cdev, devno, 1);
 	/* Fail gracefully if need be */
 	if (err)
-		printk(KERN_ALERT "Error %d addding scull%d", err, index);
+		printk(KERN_INFO "Error %d addding scull%d", err, index);
 }
 
 static int __init scull_init_module(void)
@@ -97,7 +97,7 @@ static int __init scull_init_module(void)
 		scull_major = MAJOR(dev);
 	}
 	if (result < 0) {
-		printk(KERN_WARNING "scull: can't get major %d\n", scull_major);
+		printk(KERN_INFO "scull: can't get major %d\n", scull_major);
 		return result;
 	}
 

@@ -86,10 +86,9 @@ int scull_open(struct inode *inode, struct file *filp)
 	dev = container_of(inode->i_cdev, struct scull_dev, cdev);
 	filp->private_data = dev;
 
-	if ((filp->f_flags & O_ACCMODE) == O_WRONLY) {
+	if (filp->f_flags & O_ACCMODE == O_WRONLY) {
 		if (down_interruptible(&dev->sem))
 			return -ERESTARTSYS;
-		printk(KERN_INFO "device file opened with O_WRONLY");
 		scull_trim(dev);
 		up(&dev->sem);
 	}

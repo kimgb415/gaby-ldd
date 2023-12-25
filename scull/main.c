@@ -56,7 +56,7 @@ int scull_trim(struct scull_dev *dev)
 	struct scull_qset *curr, *next; 
 	int qset = dev->qset;
 
-	// every kzalloced pointer should be kfreed from inside out
+	// every kmalloced pointer should be kfreed from inside out
 	for (curr = dev->data; curr; curr = next) {
 		if (curr->data) {
 			for (int i = 0; i < qset; ++i)

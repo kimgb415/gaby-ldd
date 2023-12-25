@@ -29,18 +29,52 @@
 int scull_major =   SCULL_MAJOR;
 int scull_minor =   0;
 int scull_nr_devs = SCULL_NR_DEVS;	/* number of bare scull devices */
+int scull_quantum = SCULL_QUANTUM;
+int scull_qset =    SCULL_QSET;
 
 // S_IRUGO: parameter that is read only by the world
 // S_IRUGO | S_IWUSR: parameter can only be modified by the root user
 module_param(scull_major, int, S_IRUGO);
 module_param(scull_minor, int, S_IRUGO);
 module_param(scull_nr_devs, int, S_IRUGO);
+module_param(scull_quantum, int, S_IRUGO);
+module_param(scull_qset, int, S_IRUGO);
 
 MODULE_AUTHOR("Gaby, Kim");
 MODULE_DESCRIPTION("scull device driver in Linux Device Driver with linux 6.7.0");
 MODULE_LICENSE("GPL v2");
 
 struct scull_dev *scull_devices;	/* allocated in scull_init_module */
+
+/*
+ * Empty out the scull device; must be called with the device
+ * semaphore held.
+ */
+int scull_trim(struct scull_dev *dev)
+{
+	struct scull_qset *curr, *next; 
+	int qset = dev->qset;
+
+	// every kmalloced pointer should be kfreed from inside out
+	for (curr = dev->data; curr; curr = next) {
+		if (curr->data) {
+			for (int i = 0; i < qset; ++i)
+				kfree(curr->data[i]);
+			kfree(curr->data);
+			curr->data = NULL;
+		}
+		next = curr->next;
+		kfree(curr);
+	}
+	
+	// reset all the information of scull_dev
+	dev->size = 0;
+	dev->quantum = scull_quantum;
+	dev->qset = scull_qset;
+	dev->data = NULL;
+
+	return 0;
+}
 
 /*
  * Open and close
@@ -52,6 +86,12 @@ int scull_open(struct inode *inode, struct file *filp)
 	dev = container_of(inode->i_cdev, struct scull_dev, cdev);
 	filp->private_data = dev;
 
+	if (filp->f_flags & O_ACCMODE == O_WRONLY) {
+		if (down_interruptible(&dev->sem))
+			return -ERESTARTSYS;
+		scull_trim(dev);
+		up(&dev->sem);
+	}
 	pr_debug("scull device is opened\n");
 
 	return 0;
@@ -81,6 +121,7 @@ void scull_cleanup_module(void)
 	/* Get rid of our char dev entries */
 	if (scull_devices) {
 		for (int i = 0; i < scull_nr_devs; i++) {
+			scull_trim(&scull_devices[i]);
 			cdev_del(&scull_devices[i].cdev);
 		}
 		kfree(scull_devices);

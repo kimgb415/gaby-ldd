@@ -21,6 +21,7 @@
 
 
 #include <linux/init.h>
+#include <linux/minmax.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include "scull.h"
@@ -104,10 +105,135 @@ int scull_release(struct inode *inode, struct file *filp)
 	return 0;
 }
 
+// scull device lazily initialize
+struct scull_qset* scull_follow(struct scull_dev *dev, int n)
+{
+	struct scull_qset* target = dev->data;
+	// to reach the (n+1)th scull_qset pointer
+	while (n-- >= 0) {
+		// allocate memory if needed
+		if (!target) {
+			target = kmalloc(sizeof(struct scull_qset), GFP_KERNEL);
+			memset(target, 0, sizeof(struct scull_qset));
+			if (!target)
+				return NULL;
+		}
+		// we already reached the target when n == 0
+		if (n > 0)
+			target = target->next;
+	}
+
+	return target;
+}
+
+ssize_t scull_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
+{
+	ssize_t retval = 0;
+	struct scull_dev *dev = filp->private_data;
+
+	if (down_interruptible(&dev->sem)) {
+		retval = -ERESTARTSYS;
+		return retval;
+	}
+
+	// case 1. offset is alreay beyond EOF
+	if (*f_pos >= dev->size)
+		goto done;
+	
+	// case 2. offset is within EOF, while offset + count is beyond EOF
+	if (*f_pos + count > dev->size)
+		count = dev->size - *f_pos;
+
+	// case 3. offset + count is within EOF, look for the target quantum to copy to user space
+	int list_node_size = dev->qset * dev->quantum;
+	// locate the q_set list node
+	int qset_pointer_offset = *f_pos / list_node_size;
+	struct scull_qset *target = scull_follow(dev, qset_pointer_offset);
+
+	// then the quantum pointer, finally pinpoint the f_pos within the quantum
+	int quantum_pointer_offset = (*f_pos % list_node_size) / dev->quantum;
+	int quantum_offset = (*f_pos % list_node_size) % dev->quantum;
+	
+	if (!target || !target->data || !target->data[quantum_pointer_offset])
+		goto done;
+
+	// read only up to the end of this quantum
+	count = min(count, (size_t)dev->quantum - quantum_offset);
+	if (copy_to_user(buf, target->data[quantum_pointer_offset] + quantum_offset, count)) {
+		retval = -EFAULT;
+		goto done;
+	}
+	*f_pos += count;
+	retval = count;
+
+done:
+	up(&dev->sem);
+	printk(KERN_INFO "read %ld bytes from scull device", retval);
+
+	return retval;
+}
+
+ssize_t scull_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos)
+{
+	ssize_t retval = -ENOMEM;
+	struct scull_dev *dev = filp->private_data;
+
+	if (down_interruptible(&dev->sem))
+		return ERESTARTSYS;
+
+	
+	int list_node_size = dev->qset * dev->quantum;
+	// locate the q_set list node
+	int qset_pointer_offset = *f_pos / list_node_size;
+	struct scull_qset *target = scull_follow(dev, qset_pointer_offset);
+	if (!target)
+		goto done;
+
+	// then the quantum pointer, finally pinpoint the f_pos within the quantum
+	int quantum_pointer_offset = (*f_pos % list_node_size) / dev->quantum;
+	int quantum_offset = (*f_pos % list_node_size) % dev->quantum;
+
+	// allocate quantum set if needed
+	if (!target->data) {
+		target->data = kmalloc(dev->qset * sizeof(void *), GFP_KERNEL);
+		if (!target->data)
+			goto done;
+		memset(target->data, 0, dev->qset * sizeof(void *));
+	}
+
+	// allocate quantum if needed
+	if (!target->data[quantum_pointer_offset]) {
+		target->data[quantum_pointer_offset] = kmalloc(dev->quantum, GFP_KERNEL);
+		if (!target->data[quantum_pointer_offset])
+			goto done;
+	}
+
+	// write only up to this quantum
+	count = min(count, (size_t)dev->quantum - quantum_offset);
+	if (copy_from_user(target->data[quantum_pointer_offset] + quantum_offset, buf, count)) {
+		retval = -EFAULT;
+		goto done;
+	}
+
+	*f_pos += count;
+	retval = count;
+
+	// update size of the device
+	dev->size = max((unsigned long)*f_pos, dev->size);
+
+done:
+	up(&dev->sem);
+	printk(KERN_INFO "write %ld bytes to scull device", retval);
+
+	return retval;
+}
+
 struct file_operations scull_fops = {
 	.owner =    	THIS_MODULE,
 	.open = 		scull_open,
 	.release = 		scull_release,
+	.read = 		scull_read,
+	.write = 		scull_write,
 };
 
 /*

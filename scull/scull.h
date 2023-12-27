@@ -1,3 +1,23 @@
+/*
+ * Macros to help debugging
+ */
+#undef PDEBUG             /* undef it, just in case */
+#ifdef SCULL_DEBUG
+#  ifdef __KERNEL__
+     /* This one if debugging is on, and kernel space */
+#    define PDEBUG(fmt, args...) printk( KERN_DEBUG "scull: " fmt, ## args)
+#  else
+     /* This one for user space */
+#    define PDEBUG(fmt, args...) fprintf(stderr, fmt, ## args)
+#  endif
+#else
+#  define PDEBUG(fmt, args...) /* not debugging: nothing */
+#endif
+
+// it can be used to easily “comment” print statements without removing them entirely.
+#undef PDEBUGG
+#define PDEBUGG(fmt, args...) /* nothing: it's a placeholder */
+
 #ifndef SCULL_MAJOR
 #define SCULL_MAJOR 0   /* dynamic major by default */
 #endif
@@ -25,9 +45,6 @@
 
 #include <linux/cdev.h>
 
-extern int scull_major;
-extern int scull_nr_devs;
-
 /*
  * Representation of scull quantum sets.
  */
@@ -44,3 +61,13 @@ struct scull_dev {
 	struct semaphore sem;     /* mutual exclusion semaphore     */
 	struct cdev cdev;	  /* Char device structure		*/
 };
+
+extern int scull_major;
+extern int scull_nr_devs;
+
+/*
+ * Prototypes for shared functions
+ */
+
+ssize_t scull_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos);
+ssize_t scull_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos);

@@ -3,6 +3,7 @@
 ifneq ($(KERNELRELEASE),)
 	obj-$(CONFIG_SCULL) += scull.o
 	scull-y := main.o
+	ccflags-$(CONFIG_DEBUG_SCULL) := -O -g -DSCULL_DEBUG
 
 # Otherwise we were called directly from the command
 # line; invoke the kernel build system.

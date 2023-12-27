@@ -1,0 +1,8 @@
+menuconfig LDD
+    bool "Linux Device Driver by Gaby Kim"
+    help 
+        This is the menu for drivers related to 
+        Linux Device Driver 3rd edition, compatible with
+        linux 6.7.0
+
+source "drivers/gakim/scull/Kconfig"

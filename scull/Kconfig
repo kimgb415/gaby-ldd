@@ -1,0 +1,6 @@
+config SCULL
+    tristate "Scull driver by Gaby, Kim"
+    depends on LDD
+    help
+        This is scull device driver based on Linux Device Drvier, 3rd edition,
+        compatible with linux 6.7.0, Authored by Gaby, Kim.

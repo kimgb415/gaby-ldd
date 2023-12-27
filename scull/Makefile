@@ -1,19 +1,23 @@
 # If KERNELRELEASE is defined, we've been invoked from the
 # kernel build system and can use its language.
 ifneq ($(KERNELRELEASE),)
-	scull-objs := main.o
-	obj-m := scull.o
+	obj-$(CONFIG_SCULL) += scull.o
+	scull-y := main.o
 
 # Otherwise we were called directly from the command
 # line; invoke the kernel build system.
 else
-	KDIR ?= /lib/modules/$(shell uname -r)/build
+	KDIR ?= ~/kernels/staging
 	PWD := $(shell pwd)
 
 modules:
 	$(MAKE) -C $(KDIR) M=$(PWD) modules
 
+clean:
+	$(MAKE) -C $(KDIR) M=$(PWD) clean
+
 endif
 
-clean:
-	rm -rf *.o *~ core .*.cmd *.ko *.mod.c *.mod .tmp_versions Module.symvers modules.order
+
+# dependency tracking in modern kernel is document in
+# https://github.com/torvalds/linux/blob/master/Documentation/kbuild/makefiles.rst#dependency-tracking

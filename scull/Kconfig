@@ -4,3 +4,9 @@ config SCULL
     help
         This is scull device driver based on Linux Device Drvier, 3rd edition,
         compatible with linux 6.7.0, Authored by Gaby, Kim.
+
+config DEBUG_SCULL
+    bool "Enable debugging features of scull driver by Gaby, Kim"
+    depends on DEBUG_KERNEL && SCULL
+    help
+        To enable debugging features of this driver, choose y here.

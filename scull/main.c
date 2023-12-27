@@ -108,21 +108,22 @@ int scull_release(struct inode *inode, struct file *filp)
 // scull device lazily initialize
 struct scull_qset* scull_follow(struct scull_dev *dev, int n)
 {
-	struct scull_qset* target = dev->data;
-	// to reach the (n+1)th scull_qset pointer
-	while (n-- >= 0) {
-		// allocate memory if needed
-		if (!target) {
-			target = kmalloc(sizeof(struct scull_qset), GFP_KERNEL);
-			memset(target, 0, sizeof(struct scull_qset));
-			if (!target)
-				return NULL;
-		}
-		// we already reached the target when n == 0
-		if (n > 0)
-			target = target->next;
+	// initialize the list head if needed
+	if (!dev->data) {
+		dev->data = kzalloc(sizeof(struct scull_qset), GFP_KERNEL);
+		if (!dev->data)
+			return NULL;
 	}
 
+	struct scull_qset *target = dev->data;
+	while (n--) {
+		if (!target->next) {
+			target->next = kzalloc(sizeof(struct scull_qset), GFP_KERNEL);
+			if (!target->next)
+				return NULL;
+		}
+		target = target->next;
+	}
 	return target;
 }
 

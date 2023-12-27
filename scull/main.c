@@ -90,18 +90,18 @@ int scull_open(struct inode *inode, struct file *filp)
 	if ((filp->f_flags & O_ACCMODE) == O_WRONLY) {
 		if (down_interruptible(&dev->sem))
 			return -ERESTARTSYS;
-		printk(KERN_DEBUG "scull device is opened with O_WRONLY flag\n");
+		PDEBUG( "device file opened with O_WRONLY\n");
 		scull_trim(dev);
 		up(&dev->sem);
 	}
-	printk(KERN_DEBUG "scull device is opened\n");
+	PDEBUG( "scull device is opened\n");
 
 	return 0;
 }
 
 int scull_release(struct inode *inode, struct file *filp)
 {
-	printk(KERN_DEBUG "scull device is released\n");
+	PDEBUG( "scull device is released\n");
 	return 0;
 }
 
@@ -169,7 +169,7 @@ ssize_t scull_read(struct file *filp, char __user *buf, size_t count, loff_t *f_
 
 done:
 	up(&dev->sem);
-	printk(KERN_INFO "read %ld bytes from scull device", retval);
+	PDEBUG( "read %ld bytes from scull device", retval);
 
 	return retval;
 }
@@ -223,7 +223,7 @@ ssize_t scull_write(struct file *filp, const char __user *buf, size_t count, lof
 
 done:
 	up(&dev->sem);
-	printk(KERN_INFO "write %ld bytes to scull device", retval);
+	PDEBUG( "write %ld bytes to scull device", retval);
 
 	return retval;
 }

@@ -36,5 +36,8 @@ if __name__ == "__main__":
         write_to_device()
     elif args.option == "read":
         read_from_device()
+    elif args.option == "both":
+        write_to_device()
+        read_from_device()
 
     

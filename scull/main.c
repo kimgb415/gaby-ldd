@@ -52,14 +52,14 @@ int scull_open(struct inode *inode, struct file *filp)
 	dev = container_of(inode->i_cdev, struct scull_dev, cdev);
 	filp->private_data = dev;
 
-	printk(KERN_INFO "scull device is opened");
+	pr_debug("scull device is opened\n");
 
 	return 0;
 }
 
 int scull_release(struct inode *inode, struct file *filp)
 {
-	printk(KERN_INFO "scull device is released");
+	pr_debug("scull device is released\n");
 	return 0;
 }
 

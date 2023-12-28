@@ -89,17 +89,18 @@ int scull_open(struct inode *inode, struct file *filp)
 	if ((filp->f_flags & O_ACCMODE) == O_WRONLY) {
 		if (down_interruptible(&dev->sem))
 			return -ERESTARTSYS;
+		printk(KERN_DEBUG "scull device is opened with O_WRONLY flag\n");
 		scull_trim(dev);
 		up(&dev->sem);
 	}
-	pr_debug("scull device is opened\n");
+	printk(KERN_DEBUG "scull device is opened\n");
 
 	return 0;
 }
 
 int scull_release(struct inode *inode, struct file *filp)
 {
-	pr_debug("scull device is released\n");
+	printk(KERN_DEBUG "scull device is released\n");
 	return 0;
 }
 

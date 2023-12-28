@@ -88,29 +88,42 @@ struct proc_dir_entry *mem_entry = NULL;
 /*
  * The proc filesystem: function to read and entry
  */
-ssize_t scull_read_procmem(struct file *filp, char __user *buf, size_t count,  loff_t *offset)
+static ssize_t scull_read_procmem(struct file *filp, char __user *buf, size_t count,  loff_t *offset)
 {
-	ssize_t len = 0;
-	for (int i = 0 ; i < scull_nr_devs && len < count; ++i) {
+	// we assume our scull device driver outputs the entire data always on the first proc_ops.read call
+	// subsequent proc_ops.read call indicates EOF
+	if (*offset) {
+		PDEBUG("reached EOF of scull");
+		return 0;
+	}
+
+	ssize_t len = 0, temp_len = 0;
+	for (int i = 0 ; i < scull_nr_devs && len <= count; ++i) {
 		struct scull_dev *device = &scull_devices[i];
-		struct scull_qset *qset = device->data;
 		if (down_interruptible(&device->sem))
 			return -ERESTARTSYS;
 
-		len += sprintf(buf + len, "[scull proc] read /dev/scull%d\n", i);
+		struct scull_qset *qset = device->data;
+		PDEBUG("[scull proc] read /dev/scull%d\n", i);
 		for (; qset && len < count; qset = qset->next) {
-			// skip empty data
 			if (!qset->data)
 				continue;
 
-			len += sprintf(buf + len, 
-				"[scull proc] quantum set list node at %p, quantum set at %p", qset, qset->data);
-			for (int j = 0; j < device->qset; ++j)
-				if (qset->data[j])
-					len += sprintf(buf + len, qset->data[j]);
+			for (int j = 0; j < device->qset && len <= count; ++j) {
+				if (!qset->data[j])
+					continue;
+				temp_len = min(count - len, (unsigned int)device->quantum);
+				if (copy_to_user(buf + len, qset->data[j], temp_len)) {
+					up(&device->sem);
+					return -EFAULT;
+				}
+				len += temp_len;
+			}
 		}
 		up(&device->sem);
 	}
+	*offset += len;
+	PDEBUG("[scull proc] read %ld bytes in total", len);
 
 	return len;
 }

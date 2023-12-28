@@ -81,9 +81,13 @@ int scull_trim(struct scull_dev *dev)
 #ifdef SCULL_DEBUG /* use proc only if debugging */
 
 #include <linux/proc_fs.h>
-#define SCULL_MEM "scullmem"
+#include <linux/seq_file.h>
+#define SCULL_PROC "scullproc"
+#define SCULL_SEQ_PROC "scullseq"
 
-struct proc_dir_entry *mem_entry = NULL;
+struct proc_dir_entry *scull_proc_entry = NULL;
+struct proc_dir_entry *scull_seq_proc_entry = NULL;
+
 
 /*
  * The proc filesystem: function to read and entry
@@ -128,21 +132,86 @@ static ssize_t scull_read_procmem(struct file *filp, char __user *buf, size_t co
 	return len;
 }
 
-static const struct proc_ops my_proc_fops = {
+static const struct proc_ops scull_proc_fops = {
 	.proc_read = scull_read_procmem,
+};
+
+static void *scull_seq_start(struct seq_file *s, loff_t *pos)
+{
+	if (*pos >= scull_nr_devs)
+		return NULL;
+	seq_printf(s, "iterate starts at /device/scull%lld\n", *pos);
+	return scull_devices + *pos;
+}
+
+static void *scull_seq_next(struct seq_file *s, void *v, loff_t *pos)
+{
+	if (*++pos >= scull_nr_devs)
+		return NULL;
+	seq_printf(s, "iterate to /device/scull%lld\n", *pos);
+	return scull_devices + *pos;
+}
+
+static int scull_seq_show(struct seq_file *s, void *v)
+{
+	struct scull_dev *device = v;
+	if (down_interruptible(&device->sem))
+		return -ERESTARTSYS;
+
+	struct scull_qset *qset = device->data;
+	for (; qset; qset = qset->next) {
+		if (!qset->data)
+			continue;
+		for (int j = 0; j < device->qset; ++j) {
+			if (!qset->data[j])
+				continue;
+			seq_printf(s, (const char *)qset->data[j]);
+		}
+	}
+
+	up(&device->sem);
+	return 0;
+}
+
+static void scull_seq_stop(struct seq_file *s, void *v)
+{
+	/* Actually, there's nothing to do here */
+}
+
+static const struct seq_operations scull_seq_ops = {
+	.start = scull_seq_start,
+	.stop = scull_seq_stop,
+	.next = scull_seq_next,
+	.show = scull_seq_show,
+};
+
+static int scull_proc_open(struct inode *inode, struct file *filp)
+{
+	return seq_open(filp, &scull_seq_ops);
+}
+
+static const struct proc_ops scull_seq_proc_ops = {
+	.proc_read = seq_read,
+	.proc_open = scull_proc_open,
+	.proc_release = seq_release,
+	.proc_lseek = seq_lseek,
 };
 
 static void scull_create_proc(void)
 {
-	mem_entry = proc_create(SCULL_MEM, 0644, NULL, &my_proc_fops);
-	if (!mem_entry)
-		PDEBUG("/proc/%s not created", SCULL_MEM);
+	scull_proc_entry = proc_create(SCULL_PROC, 0644, NULL, &scull_proc_fops);
+	if (!scull_proc_entry)
+		PDEBUG("/proc/%s not created", SCULL_PROC);
+
+	scull_seq_proc_entry = proc_create(SCULL_SEQ_PROC, 0644, NULL, &scull_seq_proc_ops);
+	if (!scull_seq_proc_entry)
+		PDEBUG("/proc/%s not created", SCULL_SEQ_PROC);
 }
 
 static void scull_remove_proc(void)
 {
-	if (mem_entry)
-		proc_remove(mem_entry);
+	proc_remove(scull_proc_entry);
+	proc_remove(scull_seq_proc_entry);
 }
 #endif
 

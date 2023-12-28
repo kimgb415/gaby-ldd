@@ -30,7 +30,7 @@ MODULE_LICENSE("GPL v2");
 
 static int __init scull_init_module(void)
 {
-	printk(KERN_INFO "scull module loaded");
+	pr_debug("scull module loaded\n");
 
 	return 0;
 }
@@ -38,7 +38,7 @@ static int __init scull_init_module(void)
 // cleanup function can't be marked as __exit, if it's used else where other than module_exit
 static void __exit scull_cleanup_module(void)
 {
-	printk(KERN_INFO "scull module unloaded");
+	pr_debug("scull module unloaded\n");
 };
 
 module_init(scull_init_module);

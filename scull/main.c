@@ -77,6 +77,62 @@ int scull_trim(struct scull_dev *dev)
 	return 0;
 }
 
+#define SCULL_DEBUG
+#ifdef SCULL_DEBUG /* use proc only if debugging */
+
+#include <linux/proc_fs.h>
+#define SCULL_MEM "scullmem"
+
+struct proc_dir_entry *mem_entry = NULL;
+
+/*
+ * The proc filesystem: function to read and entry
+ */
+ssize_t scull_read_procmem(struct file *filp, char __user *buf, size_t count,  loff_t *offset)
+{
+	ssize_t len = 0;
+	for (int i = 0 ; i < scull_nr_devs && len < count; ++i) {
+		struct scull_dev *device = &scull_devices[i];
+		struct scull_qset *qset = device->data;
+		if (down_interruptible(&device->sem))
+			return -ERESTARTSYS;
+
+		len += sprintf(buf + len, "[scull proc] read /dev/scull%d\n", i);
+		for (; qset && len < count; qset = qset->next) {
+			// skip empty data
+			if (!qset->data)
+				continue;
+
+			len += sprintf(buf + len, 
+				"[scull proc] quantum set list node at %p, quantum set at %p", qset, qset->data);
+			for (int j = 0; j < device->qset; ++j)
+				if (qset->data[j])
+					len += sprintf(buf + len, qset->data[j]);
+		}
+		up(&device->sem);
+	}
+
+	return len;
+}
+
+static const struct proc_ops my_proc_fops = {
+	.proc_read = scull_read_procmem,
+};
+
+static void scull_create_proc(void)
+{
+	mem_entry = proc_create(SCULL_MEM, 0644, NULL, &my_proc_fops);
+	if (!mem_entry)
+		PDEBUG("/proc/%s not created", SCULL_MEM);
+}
+
+static void scull_remove_proc(void)
+{
+	if (mem_entry)
+		proc_remove(mem_entry);
+}
+#endif
+
 /*
  * Open and close
  */
@@ -254,6 +310,10 @@ void scull_cleanup_module(void)
 		kfree(scull_devices);
 	}
 
+#ifdef SCULL_DEBUG
+	scull_remove_proc();
+#endif
+
 	/* cleanup_module is never called if registering failed */
 	unregister_chrdev_region(devno, scull_nr_devs);
 }
@@ -308,6 +368,10 @@ static int __init scull_init_module(void)
 		sema_init(&scull_devices[i].sem, 1);
 		scull_setup_cdev(&scull_devices[i], i);
 	}
+
+#ifdef SCULL_DEBUG
+	scull_create_proc();
+#endif
 
 	return 0;
 

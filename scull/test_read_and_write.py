@@ -8,16 +8,15 @@ def write_to_device(device=scull_device, bytes=7000):
     try:
         with open(device, "w") as file:
             ret = file.write(data_to_write)
-            print(f"write returned with {ret}")
+            print(f"write returned with {ret} bytes")
     except Exception as e:
         print(e)
 
 def read_from_device(device=scull_device, bytes=5000):
     try:
         with open(device, "r") as file:
-            ret = data = file.read(bytes)
-            print(data)
-            print(f"read returned with {ret}")
+            ret = file.read(bytes)
+            print(f"read returned with {len(ret)} bytes")
     except Exception as e:
         print(e)
 
@@ -35,6 +34,9 @@ if __name__ == "__main__":
     if args.option == "write":
         write_to_device()
     elif args.option == "read":
+        read_from_device()
+    elif args.option == "both":
+        write_to_device()
         read_from_device()
 
     

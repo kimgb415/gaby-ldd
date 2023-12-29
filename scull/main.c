@@ -77,7 +77,6 @@ int scull_trim(struct scull_dev *dev)
 	return 0;
 }
 
-#define SCULL_DEBUG
 #ifdef SCULL_DEBUG /* use proc only if debugging */
 
 #include <linux/proc_fs.h>

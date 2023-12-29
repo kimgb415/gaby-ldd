@@ -1,0 +1,22 @@
+#!/bin/sh
+device="/dev/scull"
+proc_file="/proc/scullproc"
+proc_seq="/proc/scullseq"
+
+for i in 0 1 2 3; do
+    echo "Hello from scull${i}" | sudo dd of="${device}${i}"
+done
+
+read_file() {
+    file=$1
+    if [ -e "${file}" ]; then
+        echo "read from" ${file}
+        cat ${file}
+    else
+        echo "${file} does not exit"
+    fi
+}
+
+
+read_file "${proc_file}"
+read_file "${proc_seq}"

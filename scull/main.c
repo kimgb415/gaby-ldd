@@ -56,7 +56,7 @@ int scull_trim(struct scull_dev *dev)
 	struct scull_qset *curr, *next; 
 	int qset = dev->qset;
 
-	// every kmalloced pointer should be kfreed from inside out
+	// every kzalloced pointer should be kfreed from inside out
 	for (curr = dev->data; curr; curr = next) {
 		if (curr->data) {
 			for (int i = 0; i < qset; ++i)
@@ -196,15 +196,14 @@ ssize_t scull_write(struct file *filp, const char __user *buf, size_t count, lof
 
 	// allocate quantum set if needed
 	if (!target->data) {
-		target->data = kmalloc(dev->qset * sizeof(void *), GFP_KERNEL);
+		target->data = kzalloc(dev->qset * sizeof(void *), GFP_KERNEL);
 		if (!target->data)
 			goto done;
-		memset(target->data, 0, dev->qset * sizeof(void *));
 	}
 
 	// allocate quantum if needed
 	if (!target->data[quantum_pointer_offset]) {
-		target->data[quantum_pointer_offset] = kmalloc(dev->quantum, GFP_KERNEL);
+		target->data[quantum_pointer_offset] = kzalloc(dev->quantum, GFP_KERNEL);
 		if (!target->data[quantum_pointer_offset])
 			goto done;
 	}
@@ -297,12 +296,11 @@ static int __init scull_init_module(void)
 	 * allocate the devices -- we can't have them static, as the number
 	 * can be specified at load time
 	 */
-	scull_devices = kmalloc(scull_nr_devs * sizeof(struct scull_dev), GFP_KERNEL);
+	scull_devices = kzalloc(scull_nr_devs * sizeof(struct scull_dev), GFP_KERNEL);
 	if (!scull_devices) {
 		result = -ENOMEM;
 		goto fail;  /* Make this more graceful */
 	}
-	memset(scull_devices, 0, scull_nr_devs * sizeof(struct scull_dev));
 
 	for (int i = 0; i < scull_nr_devs; ++i) {
 		scull_devices[i].quantum = scull_quantum;

@@ -80,7 +80,6 @@ int scull_trim(struct scull_dev *dev)
 struct scull_qset* scull_follow(struct scull_dev*, int);
 ssize_t scull_read_util(struct scull_dev*, char __user*, size_t, loff_t*);
 
-#define SCULL_DEBUG
 #ifdef SCULL_DEBUG /* use proc only if debugging */
 
 #include <linux/proc_fs.h>

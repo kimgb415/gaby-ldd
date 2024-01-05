@@ -5,10 +5,10 @@
 #ifdef SCULL_DEBUG
 #  ifdef __KERNEL__
      /* This one if debugging is on, and kernel space */
-#    define PDEBUG(fmt, args...) printk( KERN_DEBUG "scull: " fmt, ## args)
+#    define PDEBUG(fmt, args...) printk( KERN_DEBUG "scull: [%s] " fmt, __func__, ## args)
 #  else
      /* This one for user space */
-#    define PDEBUG(fmt, args...) fprintf(stderr, fmt, ## args)
+#    define PDEBUG(fmt, args...) fprintf(stderr, "[%s] " fmt, __func__, ## args)
 #  endif
 #else
 #  define PDEBUG(fmt, args...) /* not debugging: nothing */

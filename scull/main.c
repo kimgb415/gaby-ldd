@@ -77,6 +77,10 @@ int scull_trim(struct scull_dev *dev)
 	return 0;
 }
 
+struct scull_qset* scull_follow(struct scull_dev*, int);
+ssize_t scull_read_util(struct scull_dev*, char __user*, size_t, loff_t*);
+
+#define SCULL_DEBUG
 #ifdef SCULL_DEBUG /* use proc only if debugging */
 
 #include <linux/proc_fs.h>
@@ -93,40 +97,30 @@ struct proc_dir_entry *scull_seq_proc_entry = NULL;
  */
 static ssize_t scull_read_procmem(struct file *filp, char __user *buf, size_t count,  loff_t *offset)
 {
-	// we assume our scull device driver outputs the entire data always on the first proc_ops.read call
-	// subsequent proc_ops.read call indicates EOF
-	if (*offset) {
-		PDEBUG("reached EOF of scull");
-		return 0;
-	}
-
-	ssize_t len = 0, temp_len = 0;
+	PDEBUG("called with count: %lu, offset: %lld\n", count, *offset);
+	loff_t device_offset = *offset;
+	ssize_t len = 0;
 	for (int i = 0 ; i < scull_nr_devs && len <= count; ++i) {
 		struct scull_dev *device = &scull_devices[i];
 		if (down_interruptible(&device->sem))
 			return -ERESTARTSYS;
 
-		struct scull_qset *qset = device->data;
-		PDEBUG("[scull proc] read /dev/scull%d\n", i);
-		for (; qset && len < count; qset = qset->next) {
-			if (!qset->data)
-				continue;
+		// skip to next device if needed
+		if (device_offset >= device->size) {
+			device_offset -= device->size;
+			up(&device->sem);
+			continue;
+		}
 
-			for (int j = 0; j < device->qset && len <= count; ++j) {
-				if (!qset->data[j])
-					continue;
-				temp_len = min(count - len, (unsigned int)device->quantum);
-				if (copy_to_user(buf + len, qset->data[j], temp_len)) {
-					up(&device->sem);
-					return -EFAULT;
-				}
-				len += temp_len;
-			}
+		len = scull_read_util(device, buf, count, &device_offset);
+		// scull_read_util might return -EFAULT
+		if (len >= 0) {
+			*offset += len;
+			PDEBUG("read %ld bytes in total", len);
 		}
 		up(&device->sem);
+		break;
 	}
-	*offset += len;
-	PDEBUG("[scull proc] read %ld bytes in total", len);
 
 	return len;
 }
@@ -139,7 +133,7 @@ static void *scull_seq_start(struct seq_file *s, loff_t *pos)
 {
 	if (*pos >= scull_nr_devs)
 		return NULL;
-	seq_printf(s, "iterate starts at /device/scull%lld\n", *pos);
+	// seq_printf(s, "iterate starts at /device/scull%lld\n", *pos);
 	return scull_devices + *pos;
 }
 
@@ -147,7 +141,7 @@ static void *scull_seq_next(struct seq_file *s, void *v, loff_t *pos)
 {
 	if (++(*pos) >= scull_nr_devs)
 		return NULL;
-	seq_printf(s, "iterate to /device/scull%lld\n", *pos);
+	// seq_printf(s, "iterate to /device/scull%lld\n", *pos);
 	return scull_devices + *pos;
 }
 
@@ -264,19 +258,12 @@ struct scull_qset* scull_follow(struct scull_dev *dev, int n)
 	return target;
 }
 
-ssize_t scull_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
+ssize_t scull_read_util(struct scull_dev* dev, char __user *buf, size_t count, loff_t *f_pos)
 {
-	ssize_t retval = 0;
-	struct scull_dev *dev = filp->private_data;
-
-	if (down_interruptible(&dev->sem)) {
-		retval = -ERESTARTSYS;
-		return retval;
-	}
-
+	PDEBUG("called with count: %lu, f_pos: %lld\n", count, *f_pos);
 	// case 1. offset is alreay beyond EOF
 	if (*f_pos >= dev->size)
-		goto done;
+		return 0;
 	
 	// case 2. offset is within EOF, while offset + count is beyond EOF
 	if (*f_pos + count > dev->size)
@@ -293,18 +280,30 @@ ssize_t scull_read(struct file *filp, char __user *buf, size_t count, loff_t *f_
 	int quantum_offset = (*f_pos % list_node_size) % dev->quantum;
 	
 	if (!target || !target->data || !target->data[quantum_pointer_offset])
-		goto done;
+		return 0;
 
 	// read only up to the end of this quantum
 	count = min(count, (size_t)dev->quantum - quantum_offset);
-	if (copy_to_user(buf, target->data[quantum_pointer_offset] + quantum_offset, count)) {
-		retval = -EFAULT;
-		goto done;
-	}
-	*f_pos += count;
-	retval = count;
+	if (copy_to_user(buf, target->data[quantum_pointer_offset] + quantum_offset, count))
+		return -EFAULT;
 
-done:
+	*f_pos += count;
+	PDEBUG("read %lu bytes\n", count);
+
+	return count;
+}
+
+
+ssize_t scull_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
+{
+	ssize_t retval = 0;
+	struct scull_dev *dev = filp->private_data;
+
+	if (down_interruptible(&dev->sem))
+		return -ERESTARTSYS;
+
+	retval = scull_read_util(dev, buf, count, f_pos);
+
 	up(&dev->sem);
 	PDEBUG( "read %ld bytes from scull device", retval);
 
@@ -357,10 +356,11 @@ ssize_t scull_write(struct file *filp, const char __user *buf, size_t count, lof
 
 	// update size of the device
 	dev->size = max((unsigned long)*f_pos, dev->size);
+	PDEBUG( "write %ld bytes to scull device", retval);
+	PDEBUG( "%ld bytes are currently in scull device", dev->size);
 
 done:
 	up(&dev->sem);
-	PDEBUG( "write %ld bytes to scull device", retval);
 
 	return retval;
 }

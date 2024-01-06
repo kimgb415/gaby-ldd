@@ -1,0 +1,1 @@
+#define MDEBUG(fmt, args...) printk(KERN_DEBUG "[%s] " fmt, __func__, ## args)

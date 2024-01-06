@@ -1,0 +1,24 @@
+#!/bin/sh
+module="$1"
+device="$1"
+mode="664"
+
+# invoke insmod 
+# if insmod fails, the script will exit with error code of 1
+/sbin/insmod ./$module.ko || exit 1
+
+rm -rf /dev/${device}
+
+# use awk to retrive the major number
+# from the line where the second field equals to out module name
+major=$(awk "\$2==\"$module\" {print \$1}" /proc/devices)
+
+# create only one device node
+mknod /dev/${device} c $major 0
+
+group="staff"
+grep -q "^staff:" /etc/group || group="wheel"
+
+# since this script must be run by root
+chgrp $group /dev/${device}
+chmod $mode /dev/${device}

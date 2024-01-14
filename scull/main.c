@@ -364,12 +364,113 @@ done:
 	return retval;
 }
 
+/*
+ * The ioctl() implementation
+ */
+
+long scull_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+	/*
+	 * extract the type and number bitfields, and don't decode
+	 * wrong cmds: return ENOTTY (inappropriate ioctl) before access_ok()
+	 */
+	if (_IOC_TYPE(cmd) != SCULL_IOC_MAGIC) return -ENOTTY;
+	if (_IOC_NR(cmd) > SCULL_IOC_MAXNR) return -ENOTTY;
+
+	if (!access_ok((void __user *)arg, _IOC_SIZE(cmd)))
+		return -EFAULT;
+
+	int retval = 0, tmp;
+	switch(cmd) {
+
+	  case SCULL_IOCRESET:
+		scull_quantum = SCULL_QUANTUM;
+		scull_qset = SCULL_QSET;
+		break;
+        
+	  case SCULL_IOCSQUANTUM: /* Set: arg points to the value */
+		if (! capable (CAP_SYS_ADMIN))
+			return -EPERM;
+		retval = __get_user(scull_quantum, (int __user *)arg);
+		break;
+
+	  case SCULL_IOCTQUANTUM: /* Tell: arg is the value */
+		if (! capable (CAP_SYS_ADMIN))
+			return -EPERM;
+		scull_quantum = arg;
+		break;
+
+	  case SCULL_IOCGQUANTUM: /* Get: arg is pointer to result */
+		retval = __put_user(scull_quantum, (int __user *)arg);
+		break;
+
+	  case SCULL_IOCQQUANTUM: /* Query: return it (it's positive) */
+		return scull_quantum;
+
+	  case SCULL_IOCXQUANTUM: /* eXchange: use arg as pointer */
+		if (! capable (CAP_SYS_ADMIN))
+			return -EPERM;
+		tmp = scull_quantum;
+		retval = __get_user(scull_quantum, (int __user *)arg);
+		if (retval == 0)
+			retval = __put_user(tmp, (int __user *)arg);
+		break;
+
+	  case SCULL_IOCHQUANTUM: /* sHift: like Tell + Query */
+		if (! capable (CAP_SYS_ADMIN))
+			return -EPERM;
+		tmp = scull_quantum;
+		scull_quantum = arg;
+		return tmp;
+        
+	  case SCULL_IOCSQSET:
+		if (! capable (CAP_SYS_ADMIN))
+			return -EPERM;
+		retval = __get_user(scull_qset, (int __user *)arg);
+		break;
+
+	  case SCULL_IOCTQSET:
+		if (! capable (CAP_SYS_ADMIN))
+			return -EPERM;
+		scull_qset = arg;
+		break;
+
+	  case SCULL_IOCGQSET:
+		retval = __put_user(scull_qset, (int __user *)arg);
+		break;
+
+	  case SCULL_IOCQQSET:
+		return scull_qset;
+
+	  case SCULL_IOCXQSET:
+		if (! capable (CAP_SYS_ADMIN))
+			return -EPERM;
+		tmp = scull_qset;
+		retval = __get_user(scull_qset, (int __user *)arg);
+		if (retval == 0)
+			retval = put_user(tmp, (int __user *)arg);
+		break;
+
+	  case SCULL_IOCHQSET:
+		if (! capable (CAP_SYS_ADMIN))
+			return -EPERM;
+		tmp = scull_qset;
+		scull_qset = arg;
+		return tmp;
+
+	  default:  /* redundant, as cmd was checked against MAXNR */
+		return -ENOTTY;
+	}
+	return retval;
+}
+
 struct file_operations scull_fops = {
 	.owner =    	THIS_MODULE,
 	.open = 		scull_open,
 	.release = 		scull_release,
 	.read = 		scull_read,
 	.write = 		scull_write,
+	.unlocked_ioctl = 		scull_ioctl,
 };
 
 /*

@@ -26,6 +26,10 @@
 #define SCULL_NR_DEVS 4    /* scull0 through scull3 */
 #endif
 
+#ifndef SCULL_P_NR_DEVS
+#define SCULL_P_NR_DEVS 4  /* scullpipe0 through scullpipe3 */
+#endif
+
 /*
  * The bare device is a variable-length region of memory.
  * Use a linked list of indirect blocks.
@@ -41,6 +45,10 @@
 
 #ifndef SCULL_QSET
 #define SCULL_QSET    1000
+#endif
+
+#ifndef SCULL_P_BUFFER
+#define SCULL_P_BUFFER 4000
 #endif
 
 #include <linux/cdev.h>
@@ -69,6 +77,9 @@ extern int scull_nr_devs;
 /*
  * Prototypes for shared functions
  */
+int scull_p_init(dev_t dev);
+void scull_p_cleanup(void);
+
 int scull_trim(struct scull_dev *dev);
 
 ssize_t scull_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos);

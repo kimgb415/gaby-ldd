@@ -24,6 +24,8 @@
 #include <linux/minmax.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
+#include <linux/slab.h>
+#include <linux/semaphore.h>
 #include "scull.h"
 
 
@@ -497,6 +499,7 @@ void scull_cleanup_module(void)
 
 	/* cleanup_module is never called if registering failed */
 	unregister_chrdev_region(devno, scull_nr_devs);
+	scull_p_cleanup();
 }
 
 static void scull_setup_cdev(struct scull_dev *dev, int index)
@@ -549,6 +552,9 @@ static int __init scull_init_module(void)
 		sema_init(&scull_devices[i].sem, 1);
 		scull_setup_cdev(&scull_devices[i], i);
 	}
+
+	dev += scull_nr_devs;
+	scull_p_init(dev);
 
 #ifdef SCULL_DEBUG
 	scull_create_proc();

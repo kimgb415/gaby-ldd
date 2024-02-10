@@ -1,4 +1,4 @@
-FILES = scull_ioctl
+FILES = scull_ioctl non_blocking_test
 
 KERNELDIR ?= /lib/modules/$(shell uname -r)/build
 INCLUDEDIR := $(KERNELDIR)/include

@@ -2,6 +2,7 @@
 #include <linux/fs.h>
 #include <linux/slab.h> // kzalloc
 #include <linux/wait.h>
+#include <linux/poll.h>
 #include <linux/semaphore.h>
 
 #include "scull.h"
@@ -171,12 +172,36 @@ ssize_t scull_p_write(struct file *filp, const char __user *buf, size_t count, l
     return count;
 }
 
+// poll_table *wait can be NULL if user space program called poll with timeout value of 0
+static unsigned int scull_p_poll(struct file *filp, poll_table *wait)
+{
+    struct scull_pipe *dev = filp->private_data;
+    unsigned int mask = 0;
+
+    down(&dev->sem);
+
+    // add current process to both write queue and read queue
+    // Note that the current process is not rescheduled immediately
+    poll_wait(filp, &dev->write_queue, wait);
+    poll_wait(filp, &dev->read_queue, wait);
+
+    PDEBUG("poll scull pipe device\n");
+    if (dev->read_pointer != dev->write_pointer)
+        mask |= POLLIN | POLLRDNORM;
+    if (space_free(dev))
+        mask |= POLLOUT | POLLWRNORM;
+
+    up(&dev->sem);
+    return mask;
+}
+
 static struct file_operations scull_fops = {
     .owner = THIS_MODULE,
     .open = scull_p_open,
     .release = scull_p_release,
     .read = scull_p_read,
     .write = scull_p_write,
+    .poll = scull_p_poll,
 };
 
 static void scull_p_setup_cdev(struct scull_pipe *dev, int index)
